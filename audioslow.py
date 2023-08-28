@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
 from scipy import signal
+from pydub import AudioSegment
 
 class AudioSlowApp:
     def __init__(self, root):
@@ -24,7 +25,7 @@ class AudioSlowApp:
         self.speed_slider = tk.Scale(self.root, from_=1, to=200, label="Speed %", orient="horizontal", length=300)
         self.speed_slider.pack()
 
-        manipulate_button = tk.Button(self.root, text="Manipulate Audio", command=self.manipulate_audio)
+        manipulate_button = tk.Button(self.root, text="Slow Down Audio", command=self.slow_down_audio)
         manipulate_button.pack(pady=10)
 
         self.progress_bar = ttk.Progressbar(self.root, orient="horizontal", length=300, mode="determinate")
@@ -33,7 +34,7 @@ class AudioSlowApp:
         self.status_label = tk.Label(self.root, text="", wraplength=400)
         self.status_label.pack(pady=10)
 
-    def manipulate_audio(self):
+    def slow_down_audio(self):
         if self.original_audio is None:
             self.status_label.config(text="Please select an audio file first.")
             return
@@ -62,18 +63,23 @@ class AudioSlowApp:
 
     def generate_output_filename(self, speed_factor):
         filename, extension = os.path.splitext(self.original_filename)
-        if speed_factor > 1:
-            speed_type = "sped_up"
-        else:
-            speed_type = "slowed"
-        new_filename = f"{filename}_{speed_type}_{int(abs(speed_factor) * 100)}_percent{extension}"
+        speed_type = "sped_up" if speed_factor > 1 else "slowed"
+        new_filename = f"{filename}_{speed_type}_{int(speed_factor * 100)}_percent{extension}"
         return new_filename
 
     def select_audio_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.wav *.flac")])
-        self.original_audio, self.sample_rate = sf.read(file_path)
+        file_path = filedialog.askopenfilename(filetypes=[
+            ("Audio Files", "*.mp3 *.wav *.flac *.pcm *.aiff *.aac *.wma *.ogg *.alac *.m4a")
+        ])
+        self.original_audio, self.sample_rate = self.load_audio(file_path)
         self.original_filename = file_path
         self.status_label.config(text="Selected audio file: " + self.original_filename)
+
+    def load_audio(self, file_path):
+        audio = AudioSegment.from_file(file_path)
+        sample_rate = audio.frame_rate
+        audio_data = np.array(audio.get_array_of_samples())
+        return audio_data, sample_rate
 
 if __name__ == "__main__":
     root = tk.Tk()
