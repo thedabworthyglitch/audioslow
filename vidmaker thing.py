@@ -3,9 +3,7 @@ import numpy as np
 import soundfile as sf
 import tkinter as tk
 from tkinter import filedialog
-from tkinter import ttk
-from scipy import signal
-from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip
+from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
 
 class AudioVideoSyncApp:
     def __init__(self, root):
@@ -49,23 +47,39 @@ class AudioVideoSyncApp:
         audio_output_filepath = os.path.join(output_directory, audio_output_filename)
         sf.write(audio_output_filepath, new_audio, self.sample_rate, format='FLAC')
 
-        video_clip = VideoFileClip(self.original_video_filename)
         audio_clip = AudioFileClip(audio_output_filepath)
-        audio_clip = audio_clip.subclip(0, video_clip.duration)
+        video_clip = VideoFileClip(self.original_video_filename)
 
-        final_video_clip = video_clip.set_audio(audio_clip)
+        video_duration = video_clip.duration
+        audio_duration = audio_clip.duration
+
+        # Create looped video to match audio duration
+        looped_video_clips = [video_clip] * int(np.ceil(audio_duration / video_duration))
+        looped_video = concatenate_videoclips(looped_video_clips, method="compose").subclip(0, audio_duration)
+
+        # Combine audio and video
+        final_video = looped_video.set_audio(audio_clip)
 
         output_video_filename = self.generate_output_filename(speed_factor, "video") + ".mp4"
         output_video_filepath = os.path.join(output_directory, output_video_filename)
 
-        final_video_clip.write_videofile(output_video_filepath, codec="libx264")
+        final_video.write_videofile(output_video_filepath, codec="libx264")
 
         self.status_label.config(text="Audio and video processing completed. Created video: " + output_video_filepath)
 
     def change_speed(self, audio, speed_factor):
-        num_samples = len(audio)
+        num_samples, num_channels = audio.shape
         new_num_samples = int(num_samples / speed_factor)
-        new_audio = signal.resample(audio, new_num_samples)
+
+        new_audio = np.zeros((new_num_samples, num_channels))
+
+        for channel in range(num_channels):
+            new_audio[:, channel] = np.interp(
+                np.linspace(0, num_samples - 1, new_num_samples),
+                np.arange(num_samples),
+                audio[:, channel]
+            )
+
         return new_audio
 
     def generate_output_filename(self, speed_factor, file_type):
