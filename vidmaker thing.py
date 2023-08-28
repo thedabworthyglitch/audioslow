@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
 from scipy import signal
-from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
+from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip
 
 class AudioVideoSyncApp:
     def __init__(self, root):
@@ -47,24 +47,13 @@ class AudioVideoSyncApp:
 
         output_directory = os.path.dirname(self.original_audio_filename)
         audio_output_filepath = os.path.join(output_directory, audio_output_filename)
-        sf.write(audio_output_filepath, new_audio, self.sample_rate, format='wav')
+        sf.write(audio_output_filepath, new_audio, self.sample_rate, format='FLAC')
 
-        audio_clip = AudioFileClip(audio_output_filepath)
         video_clip = VideoFileClip(self.original_video_filename)
+        audio_clip = AudioFileClip(audio_output_filepath)
+        audio_clip = audio_clip.subclip(0, video_clip.duration)
 
-        # Calculate the number of times the video should be looped
-        loop_count = int(np.ceil(audio_clip.duration / video_clip.duration))
-
-        # Create the list of video clips for looping
-        looped_video_clips = [video_clip.crossfadein(0)] * loop_count
-
-        # Concatenate the looped video clips
-        looped_video_clip = concatenate_videoclips(looped_video_clips, method="compose")
-
-        # Trim the video to match the audio duration
-        final_video_clip = looped_video_clip.subclip(0, audio_clip.duration)
-
-        final_video_clip = final_video_clip.set_audio(audio_clip)
+        final_video_clip = video_clip.set_audio(audio_clip)
 
         output_video_filename = self.generate_output_filename(speed_factor, "video") + ".mp4"
         output_video_filepath = os.path.join(output_directory, output_video_filename)
