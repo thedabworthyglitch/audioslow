@@ -6,62 +6,76 @@ from tkinter import filedialog
 from tkinter import ttk
 from scipy import signal
 
-# Function to change the speed of audio using resampling
-def change_speed(audio, sample_rate, speed_factor):
-    num_samples = len(audio)
-    new_num_samples = int(num_samples / speed_factor)
-    new_audio = signal.resample(audio, new_num_samples)
-    return new_audio
+class AudioSlowApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("AudioSlow - Audio Manipulation App")
 
-# Function to generate output filename based on manipulation
-def generate_output_filename(original_filename, speed_factor):
-    filename, extension = os.path.splitext(original_filename)
-    speed_type = "slowed" if speed_factor < 1 else "sped_up"
-    new_filename = f"{filename}_{speed_type}_{int(speed_factor * 100)}_percent{extension}"
-    return new_filename
+        self.original_audio = None
+        self.sample_rate = None
+        self.original_filename = None
 
-# Function to manipulate audio
-def manipulate_audio():
-    global original_audio, sample_rate
-    speed_factor = speed_slider.get() / 100.0
+        self.create_ui()
 
-    new_audio = change_speed(original_audio, sample_rate, speed_factor)
-    
-    output_filename = generate_output_filename(original_filename, speed_factor)
-    sf.write(output_filename, new_audio, sample_rate)
-    
-    # Update progress bar
-    progress_bar["value"] = 100  # Set to 100% when processing is complete
-    
-    status_label.config(text="Audio manipulation completed and saved as: " + output_filename)
+    def create_ui(self):
+        select_button = tk.Button(self.root, text="Select Audio File", command=self.select_audio_file)
+        select_button.pack(pady=10)
 
-# Function to select an audio file
-def select_audio_file():
-    global original_audio, sample_rate, original_filename
-    file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.wav *.flac")])
-    original_audio, sample_rate = sf.read(file_path)
-    original_filename = os.path.basename(file_path)
-    status_label.config(text="Selected audio file: " + original_filename)
+        self.speed_slider = tk.Scale(self.root, from_=1, to=200, label="Speed %", orient="horizontal", length=300)
+        self.speed_slider.pack()
 
-# Create the main GUI window
-root = tk.Tk()
-root.title("Audio Manipulation App")
+        manipulate_button = tk.Button(self.root, text="Manipulate Audio", command=self.manipulate_audio)
+        manipulate_button.pack(pady=10)
 
-# Create UI components
-select_button = tk.Button(root, text="Select Audio File", command=select_audio_file)
-speed_slider = tk.Scale(root, from_=1, to=200, label="Speed %", orient="horizontal", length=300)
-manipulate_button = tk.Button(root, text="Manipulate Audio", command=manipulate_audio)
-status_label = tk.Label(root, text="", wraplength=400)
+        self.progress_bar = ttk.Progressbar(self.root, orient="horizontal", length=300, mode="determinate")
+        self.progress_bar.pack(pady=10)
 
-# Create a progress bar widget
-progress_bar = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
+        self.status_label = tk.Label(self.root, text="", wraplength=400)
+        self.status_label.pack(pady=10)
 
-# Position UI components using grid layout
-select_button.grid(row=0, column=0, padx=10, pady=10)
-speed_slider.grid(row=1, column=0, padx=10, pady=10)
-manipulate_button.grid(row=2, column=0, padx=10, pady=10)
-status_label.grid(row=3, column=0, padx=10, pady=10)
-progress_bar.grid(row=4, column=0, padx=10, pady=10)
+    def manipulate_audio(self):
+        if self.original_audio is None:
+            self.status_label.config(text="Please select an audio file first.")
+            return
 
-# Start the GUI event loop
-root.mainloop()
+        speed_factor = self.speed_slider.get() / 100.0
+
+        new_audio = self.change_speed(self.original_audio, speed_factor)
+
+        output_filename = self.generate_output_filename(speed_factor)
+
+        # Create "processed" subdirectory in the same location as the selected audio file
+        output_directory = os.path.join(os.path.dirname(self.original_filename), "processed")
+        os.makedirs(output_directory, exist_ok=True)
+
+        output_filepath = os.path.join(output_directory, output_filename)
+        sf.write(output_filepath, new_audio, self.sample_rate)
+
+        self.progress_bar["value"] = 100
+        self.status_label.config(text="Audio manipulation completed and saved as: " + output_filepath)
+
+    def change_speed(self, audio, speed_factor):
+        num_samples = len(audio)
+        new_num_samples = int(num_samples / speed_factor)
+        new_audio = signal.resample(audio, new_num_samples)
+        return new_audio
+
+    def generate_output_filename(self, speed_factor):
+        filename, extension = os.path.splitext(self.original_filename)
+        if speed_factor > 1:
+            speed_type = "sped_up"
+        else:
+            speed_type = "slowed"
+        new_filename = f"{filename}_{speed_type}_{int(abs(speed_factor) * 100)}_percent{extension}"
+        return new_filename
+
+    def select_audio_file(self):
+        file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.wav *.flac")])
+        self.original_audio, self.sample_rate = sf.read(file_path)
+        self.original_filename = file_path
+        self.status_label.config(text="Selected audio file: " + self.original_filename)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AudioSlowApp(root)
+    root.mainloop()
