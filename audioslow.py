@@ -5,6 +5,8 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
 from scipy import signal
+from pydub import AudioSegment
+import simpleaudio as sa
 
 # Function to change the speed of audio using resampling
 def change_speed(audio, sample_rate, speed_factor):
@@ -28,7 +30,7 @@ def generate_output_filename(original_filename, speed_factor):
 
 # Function to manipulate audio
 def manipulate_audio():
-    global original_audio, sample_rate, playback_audio
+    global original_audio, sample_rate, playback_audio, playback_wave_obj
     speed_factor = speed_slider.get() / 100.0
     reverb_amount = reverb_slider.get() / 100.0
 
@@ -38,19 +40,28 @@ def manipulate_audio():
         new_audio = apply_reverb(new_audio, reverb_amount)
     
     playback_audio = new_audio  # Store the audio for playback
+    playback_wave_obj = sa.WaveObject(playback_audio.astype(np.int16), num_channels=1, bytes_per_sample=2, sample_rate=sample_rate)
     update_progress(100)  # Update progress to 100% when manipulation is done
     status_label.config(text="Audio manipulation completed. You can playback the audio before exporting.")
+    export_button.config(state=tk.NORMAL)  # Enable the export button
 
 # Function to update the progress bar
 def update_progress(value):
     progress_bar["value"] = value
     root.update_idletasks()
 
-# Function to play the audio
+# Function to play the audio using the audio player
 def play_audio():
-    global playback_audio, sample_rate
-    if playback_audio is not None:
-        sf.play(playback_audio, sample_rate)
+    if playback_wave_obj:
+        playback_wave_obj.play()
+
+# Function to export the audio
+def export_audio():
+    global playback_audio, sample_rate, original_filename
+    output_filename = filedialog.asksaveasfilename(defaultextension=".wav", filetypes=[("WAV Files", "*.wav")])
+    if output_filename:
+        sf.write(output_filename, playback_audio, sample_rate)
+        status_label.config(text="Audio exported as: " + os.path.basename(output_filename))
 
 # Function to select an audio file
 def select_audio_file():
@@ -59,8 +70,10 @@ def select_audio_file():
     original_audio, sample_rate = sf.read(file_path)
     original_filename = os.path.basename(file_path)
     playback_audio = None  # Clear playback audio
+    playback_wave_obj = None  # Clear playback wave object
     status_label.config(text="Selected audio file: " + original_filename)
     update_progress(0)  # Reset progress bar
+    export_button.config(state=tk.DISABLED)  # Disable the export button until manipulation is done
 
 # Create the main GUI window
 root = tk.Tk()
@@ -74,6 +87,7 @@ reverb_checkbox = tk.Checkbutton(root, text="Enable Reverb", variable=reverb_var
 reverb_slider = tk.Scale(root, from_=0, to=100, label="Reverb Amount %", orient="horizontal", length=300)
 manipulate_button = tk.Button(root, text="Process Audio", command=manipulate_audio)
 play_button = tk.Button(root, text="Play Audio", command=play_audio)
+export_button = tk.Button(root, text="Export Audio", command=export_audio, state=tk.DISABLED)
 progress_bar = ttk.Progressbar(root, mode="determinate")
 status_label = tk.Label(root, text="", wraplength=400)
 
@@ -84,8 +98,9 @@ reverb_checkbox.grid(row=2, column=0, padx=10, pady=10)
 reverb_slider.grid(row=3, column=0, padx=10, pady=10)
 manipulate_button.grid(row=4, column=0, padx=10, pady=10)
 play_button.grid(row=5, column=0, padx=10, pady=10)
-progress_bar.grid(row=6, column=0, padx=10, pady=10)
-status_label.grid(row=7, column=0, padx=10, pady=10)
+export_button.grid(row=6, column=0, padx=10, pady=10)
+progress_bar.grid(row=7, column=0, padx=10, pady=10)
+status_label.grid(row=8, column=0, padx=10, pady=10)
 
 # Start the GUI event loop
 root.mainloop()
